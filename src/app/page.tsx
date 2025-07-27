@@ -1,103 +1,100 @@
-import Image from "next/image";
+"use client";
+import { XOR } from "@/utils/XOR";
+import { indexOfBytes } from "@/utils/indexOfByte";
+import isValidM3u8 from "@/utils/isValidM3u8";
+import { toArrayBuffer } from "@/utils/toArrayBuffer";
+import { useRef, useState } from "react";
 
-export default function Home() {
+
+const Home = () => {
+  const useFile = useRef<HTMLInputElement | null>(null);
+  const [isListFile, setListFile] = useState<{ name: string, offsetImage: number, image: string, blob: Blob }[] | null>(null);
+  const useM3u8 = useRef<HTMLTextAreaElement | null>(null);
+  const [isError, setError] = useState<boolean>(false);
+  const [isSuccess, setSuccess] = useState<boolean>(false);
+  const [isProcessing, setProcessing] = useState<boolean>(false);
+  const [isLoadedFile, setLoadedFile] = useState<number>(0);
+  const handleFile = async () => {
+    const listFile: { name: string, offsetImage: number, image: string, blob: Blob }[] = [];
+    const IEND = Uint8Array.from([0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82]);
+    const responseImage = await fetch("/flag.png");
+    const bufferImage = await responseImage.arrayBuffer();
+    const len = useFile.current!.files!.length
+    for (let i = 0; i < len; i++) {
+      const buffer = await useFile.current!.files![i].arrayBuffer();
+      const resultBuffer = XOR(buffer);
+      const image = Buffer.concat([new Uint8Array(bufferImage), new Uint8Array(resultBuffer)]);
+      const blobImage = new Blob([image], {
+        type: "image/png"
+      });
+
+      listFile.push({
+        name: useFile.current!.files![i].name,
+        offsetImage: indexOfBytes(toArrayBuffer(image), IEND),
+        image: URL.createObjectURL(blobImage),
+        blob: blobImage
+      })
+    }
+    return listFile;
+  }
+
+  const handlerUpload = async () => {
+    await handleFile().then(async (listFile) => {
+      setListFile(listFile);
+      setProcessing(true);
+      let loadedFile = 0;
+      for (const item of listFile) {
+        const formData = new FormData();
+        formData.append("name", item.name);
+        formData.append("file", item.blob);
+        const response = await fetch("/api/tiktok", {
+          method: "POST",
+          body: formData
+        }).then(res => res.json());
+        loadedFile++;
+        setLoadedFile(loadedFile);
+        const pattern = new RegExp(response.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+        if (useM3u8.current!.value.length > 0) {
+          useM3u8.current!.value = useM3u8.current!.value.replace(pattern, response.url);
+        }
+        useM3u8.current!.value.trim();
+      }
+      setSuccess(true);
+      setProcessing(false);
+    }
+    );
+
+  }
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+    <div className="flex flex-col justify-center items-center w-full h-screen gap-2">
+      <div className="flex flex-col justify-center items-center relative w-[300px] h-[200px] border-2 border-dashed rounded-lg">
+        {isListFile === null && <label>Thả các file ts segment ở đây.</label>}
+        {isListFile && <div>
+          <div className="flex flex-col w-full items-center">
+            <span>Total file: {isListFile.length}</span>
+            <span>Loading: {isLoadedFile}/{isListFile.length}</span>
+          </div>
+        </div>}
+        <input type="file" className="absolute w-full h-full p-2 opacity-0" accept=".ts" multiple ref={useFile} />
+      </div>
+      <textarea disabled={isProcessing} ref={useM3u8} className="w-[300px] h-[200px] max-h-[200px] outline-none border-2 border-dashed rounded px-3 py-2" placeholder="Để m3u8 gốc ở đây!" />
+      <div className="mt-5 flex flex-col gap-3">
+        <button onClick={handlerUpload} className="p-2 rounded bg-blue-400">Process...</button>
+        {isSuccess && <div className="flex flex-col gap-2 justify-center items-center">
+          <button onClick={() => {
+            const value = useM3u8.current!.value;
+            const target = useM3u8.current!;
+            target.select();
+            target.setSelectionRange(0, value.length);
+            navigator.clipboard.writeText(value);
+          }} className="p-2 bg-red-400 rounded">Copy output.</button>
+          {isError ? (
+            <h1 className="text-red-400">Có lỗi xảy ra!</h1>
+          ) : (<h1 className="text-green-400">Thành công!</h1>)}
+        </div>}
+      </div>
     </div>
-  );
+  )
 }
+
+export default Home;
